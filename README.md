@@ -35,19 +35,21 @@
 - Python 3.10+
 - Windows / macOS / Linux
 
-### 安装与启动
+### 一键启动
+
+| 系统 | 方式 |
+|------|------|
+| **Windows** | 双击 `启动系统.bat` |
+| **macOS / Linux** | 终端运行 `bash 启动系统.sh` |
+
+脚本会自动安装依赖、初始化数据库、启动服务，并打开浏览器。
+
+### 手动启动
 
 ```bash
-# 1. 进入系统目录
 cd risk-monitor-system
-
-# 2. 安装依赖
-pip install -r requirements.txt
-
-# 3. 初始化种子数据（腾讯控股案例）
-python -X utf8 data/seed_data.py
-
-# 4. 启动系统
+pip install -r requirements.txt          # 首次运行
+python -X utf8 data/seed_data.py         # 首次运行
 python run.py
 ```
 
