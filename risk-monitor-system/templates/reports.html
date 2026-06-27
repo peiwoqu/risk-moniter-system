@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}报告生成 - Agent智能风险监控管理系统{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-file-earmark-text"></i> 报告生成</h2>
+        <p class="text-muted">基于AI分析结果自动生成风险管理报告</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-gear"></i> 生成配置</h5></div>
+            <div class="card-body">
+                <form id="report-form">
+                    <div class="mb-3">
+                        <label class="form-label">企业名称</label>
+                        <input type="text" class="form-control" id="enterprise-name"
+                               value="腾讯控股" placeholder="企业名称">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">报告类型</label>
+                        <select class="form-select" id="report-type">
+                            <option value="full">📦 完整报告包（Word + Excel + JSON）</option>
+                            <option value="word">📝 Word报告</option>
+                            <option value="excel">📊 Excel风险清单</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" id="generate-btn">
+                        <i class="bi bi-cpu"></i> 生成报告
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 报告结构预览 -->
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-eye"></i> 报告结构预览</h5></div>
+            <div class="card-body">
+                <ol class="small">
+                    <li><strong>摘要</strong> - 300字风险分析摘要</li>
+                    <li><strong>风险概览</strong> - 统计表和风险清单</li>
+                    <li><strong>风险详细分析</strong> - 每个风险的详细说明</li>
+                    <li><strong>预警信息</strong> - 当前活跃预警</li>
+                    <li><strong>优先行动事项</strong> - 按紧急程度排序</li>
+                    <li><strong>附录</strong> - 框架说明和数据来源</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-list-ul"></i> 生成结果</h5></div>
+            <div class="card-body" id="result-area">
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-file-earmark-arrow-up" style="font-size: 3rem;"></i>
+                    <p class="mt-3">选择配置后点击"生成报告"</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById('report-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const btn = document.getElementById('generate-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 正在生成报告...';
+
+    const data = {
+        enterprise_name: document.getElementById('enterprise-name').value,
+        report_type: document.getElementById('report-type').value
+    };
+
+    fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(d => {
+        const resultArea = document.getElementById('result-area');
+        if (d.success) {
+            const files = d.data.files || {word: d.data.filepath};
+            let html = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> 报告生成成功！</div>';
+
+            if (files.word) {
+                const wordFile = files.word.split('/').pop().split('\\').pop();
+                html += `<div class="mb-2"><a href="/api/reports/download/${wordFile}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-download"></i> 下载Word报告</a></div>`;
+            }
+            if (files.excel) {
+                const excelFile = files.excel.split('/').pop().split('\\').pop();
+                html += `<div class="mb-2"><a href="/api/reports/download/${excelFile}" class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-download"></i> 下载Excel清单</a></div>`;
+            }
+            if (files.json) {
+                const jsonFile = files.json.split('/').pop().split('\\').pop();
+                html += `<div class="mb-2"><a href="/api/reports/download/${jsonFile}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-download"></i> 下载JSON数据</a></div>`;
+            }
+
+            html += `<hr><small class="text-muted">报告文件保存在服务器 data/reports/ 目录</small>`;
+            resultArea.innerHTML = html;
+        } else {
+            resultArea.innerHTML = `<div class="alert alert-danger">生成失败：${d.error || '未知错误'}</div>`;
+        }
+    })
+    .catch(err => {
+        document.getElementById('result-area').innerHTML =
+            `<div class="alert alert-danger">请求失败：${err.message}</div>`;
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-cpu"></i> 生成报告';
+    });
+});
+</script>
+{% endblock %}

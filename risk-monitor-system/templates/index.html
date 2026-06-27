@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}仪表盘 - Agent智能风险监控管理系统{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-speedometer2"></i> 风险管理仪表盘</h2>
+        <p class="text-muted">腾讯控股（0700.HK）实时风险监控概览</p>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary" onclick="runFullAnalysis()">
+            <i class="bi bi-play-fill"></i> 运行AI分析
+        </button>
+        <button class="btn btn-outline-secondary" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> 刷新
+        </button>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="row mb-4" id="stats-cards">
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">重大风险</h6>
+                        <h2 class="mb-0">{{ stats.by_level.critical if stats.by_level else 0 }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-exclamation-octagon" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+                <small>得分 ≥ 15，需立即处理</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">高度关注</h6>
+                        <h2 class="mb-0">{{ stats.by_level.high if stats.by_level else 0 }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-exclamation-triangle" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+                <small>得分 10-14，需重点关注</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">一般风险</h6>
+                        <h2 class="mb-0">{{ stats.by_level.medium if stats.by_level else 0 }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-info-circle" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+                <small>得分 5-9，需持续监控</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">风险总数</h6>
+                        <h2 class="mb-0">{{ stats.total if stats.total else 0 }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-shield-check" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+                <small>平均得分: {{ stats.average_score if stats.average_score else '-' }}</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- 风险矩阵 -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="bi bi-grid-3x3-gap"></i> 风险矩阵 (P × I)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="riskMatrixChart" height="350"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 风险趋势与类别 -->
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="bi bi-graph-up"></i> 风险趋势</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="trendChart" height="200"></canvas>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="bi bi-pie-chart"></i> 风险类别分布</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="categoryChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 预警列表 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="bi bi-bell"></i> 最新预警</h5>
+                <span class="badge bg-danger" id="unresolved-count">加载中...</span>
+            </div>
+            <div class="card-body" id="warnings-list">
+                <div class="text-center text-muted py-3">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    加载预警数据...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+});
+
+function loadDashboardData() {
+    // 加载统计数据
+    fetch('/api/dashboard/stats')
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                updateStatsCards(d.data);
+                loadRiskMatrix();
+            }
+        });
+
+    // 加载预警数据
+    fetch('/api/warnings?unresolved=true')
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                renderWarningsList(d.data);
+                document.getElementById('unresolved-count').textContent = d.unresolved_count;
+            }
+        });
+}
+
+function updateStatsCards(stats) {
+    // 更新统计卡片（如需要动态更新）
+    document.getElementById('unresolved-count').textContent =
+        stats.by_level.critical + stats.by_level.high;
+}
+
+function loadRiskMatrix() {
+    fetch('/api/risks')
+        .then(r => r.json())
+        .then(d => {
+            if (d.success && d.data.length > 0) {
+                renderRiskMatrixChart(d.data);
+                renderTrendChart(d.data);
+                renderCategoryChart(d.data);
+            }
+        });
+}
+
+function runFullAnalysis() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 分析中...';
+
+    fetch('/api/analysis/full', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enterprise_name: '腾讯控股'})
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showAlert('success', 'AI分析完成！共识别 ' + d.data.pipeline_metadata.risks_count + ' 个风险，'
+                + d.data.pipeline_metadata.warnings_count + ' 个预警');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert('danger', '分析失败：' + (d.error || '未知错误'));
+        }
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-play-fill"></i> 运行AI分析';
+    });
+}
+
+function renderWarningsList(warnings) {
+    const container = document.getElementById('warnings-list');
+    if (!warnings || warnings.length === 0) {
+        container.innerHTML = '<div class="text-center text-success py-3">✅ 当前无预警信息</div>';
+        return;
+    }
+
+    const levelIcons = {red: '🔴', orange: '🟠', yellow: '🟡'};
+    const levelClass = {red: 'danger', orange: 'warning', yellow: 'info'};
+
+    let html = '<div class="list-group list-group-flush">';
+    warnings.forEach(w => {
+        html += `
+        <div class="list-group-item border-${levelClass[w.warning_level] || 'secondary'} border-start border-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>${levelIcons[w.warning_level] || ''} ${w.risk_name}</strong>
+                    <p class="mb-1 text-muted small">${w.trigger_reason || ''}</p>
+                </div>
+                <span class="badge bg-${levelClass[w.warning_level] || 'secondary'}">${w.warning_level}</span>
+            </div>
+            <p class="mb-0 small">${w.warning_message}</p>
+        </div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function showAlert(type, message) {
+    const container = document.getElementById('alert-container');
+    container.innerHTML = `
+    <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# 数据库
+*.db
+*.db-journal
+*.sqlite3
+
+# 临时文件
+~$*.docx
+~$*.xlsx
+~$*.pptx
+*.tmp
+*.log
+
+# 上传文件和生成的报告
+risk-monitor-system/data/uploads/*
+risk-monitor-system/data/reports/*
+!risk-monitor-system/data/uploads/.gitkeep
+!risk-monitor-system/data/reports/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude
+.claude/

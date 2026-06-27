@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}风险管理 - Agent智能风险监控管理系统{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-exclamation-triangle"></i> 风险管理</h2>
+        <p class="text-muted">识别、评估和监控企业风险</p>
+    </div>
+    <div class="col-auto">
+        <a href="/risks/new" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> 新增风险
+        </a>
+        <button class="btn btn-outline-success" onclick="runRiskIdentification()">
+            <i class="bi bi-cpu"></i> AI识别
+        </button>
+        <button class="btn btn-outline-warning" onclick="runRiskAssessment()">
+            <i class="bi bi-bar-chart"></i> AI评估
+        </button>
+    </div>
+</div>
+
+<!-- 筛选器 -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-3">
+                <select class="form-select" id="filter-level" onchange="filterRisks()">
+                    <option value="">全部风险等级</option>
+                    <option value="critical">🔴 重大风险</option>
+                    <option value="high">🟠 高度关注</option>
+                    <option value="medium">🟡 一般风险</option>
+                    <option value="low">🟢 低风险</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filter-category" onchange="filterRisks()">
+                    <option value="">全部类别</option>
+                    <option value="外部风险">外部风险</option>
+                    <option value="内部风险">内部风险</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filter-trend" onchange="filterRisks()">
+                    <option value="">全部趋势</option>
+                    <option value="increasing">↑ 上升</option>
+                    <option value="stable">→ 稳定</option>
+                    <option value="decreasing">↓ 下降</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control" id="filter-search"
+                       placeholder="搜索风险名称..." onkeyup="filterRisks()">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 风险列表 -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="risks-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>编号</th>
+                        <th>风险名称</th>
+                        <th>类别</th>
+                        <th>P</th>
+                        <th>I</th>
+                        <th>得分</th>
+                        <th>等级</th>
+                        <th>趋势</th>
+                        <th>应对策略</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if risks %}
+                        {% for risk in risks %}
+                        <tr class="risk-row"
+                            data-level="{{ risk.risk_level }}"
+                            data-category="{{ risk.category }}"
+                            data-trend="{{ risk.trend }}">
+                            <td><span class="badge bg-secondary">{{ risk.risk_code }}</span></td>
+                            <td>
+                                <a href="/risks/{{ risk.id }}" class="text-decoration-none">
+                                    <strong>{{ risk.name }}</strong>
+                                </a>
+                            </td>
+                            <td><small>{{ risk.subcategory or risk.category }}</small></td>
+                            <td>{{ risk.probability }}</td>
+                            <td>{{ risk.impact }}</td>
+                            <td><strong>{{ risk.risk_score }}</strong></td>
+                            <td>
+                                <span class="badge bg-{{ risk.risk_level | risk_level_color }}">
+                                    {{ risk.risk_level | risk_level_badge }}
+                                </span>
+                            </td>
+                            <td>{{ risk.trend | trend_icon }}</td>
+                            <td>
+                                {% if risk.response_type == 'avoid' %}🚫 规避
+                                {% elif risk.response_type == 'reduce' %}🛡️ 降低
+                                {% elif risk.response_type == 'transfer' %}🔄 转移
+                                {% else %}✅ 接受{% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="/risks/{{ risk.id }}" class="btn btn-outline-primary btn-sm"
+                                       title="查看详情"><i class="bi bi-eye"></i></a>
+                                    <a href="/risks/{{ risk.id }}/edit" class="btn btn-outline-secondary btn-sm"
+                                       title="编辑"><i class="bi bi-pencil"></i></a>
+                                    <button class="btn btn-outline-danger btn-sm"
+                                            onclick="deleteRisk({{ risk.id }})"
+                                            title="删除"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="10" class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                <p class="mt-2">暂无风险数据</p>
+                                <button class="btn btn-primary btn-sm" onclick="runRiskIdentification()">
+                                    <i class="bi bi-cpu"></i> 运行AI风险识别
+                                </button>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function filterRisks() {
+    const level = document.getElementById('filter-level').value;
+    const category = document.getElementById('filter-category').value;
+    const trend = document.getElementById('filter-trend').value;
+    const search = document.getElementById('filter-search').value.toLowerCase();
+
+    document.querySelectorAll('.risk-row').forEach(row => {
+        let show = true;
+        if (level && row.dataset.level !== level) show = false;
+        if (category && row.dataset.category !== category) show = false;
+        if (trend && row.dataset.trend !== trend) show = false;
+        if (search) {
+            const text = row.textContent.toLowerCase();
+            if (!text.includes(search)) show = false;
+        }
+        row.style.display = show ? '' : 'none';
+    });
+}
+
+function runRiskIdentification() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 识别中...';
+
+    fetch('/api/analysis/full', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enterprise_name: '腾讯控股'})
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            alert('AI分析完成！识别 ' + d.data.pipeline_metadata.risks_count + ' 个风险');
+            location.reload();
+        } else {
+            alert('分析失败：' + (d.error || '未知错误'));
+        }
+    })
+    .finally(() => { btn.disabled = false; });
+}
+
+function runRiskAssessment() {
+    fetch('/api/analysis/assess', { method: 'POST', headers: {'Content-Type': 'application/json'} })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) alert('风险评估完成！');
+        location.reload();
+    });
+}
+
+function deleteRisk(id) {
+    if (!confirm('确定要删除该风险吗？此操作不可恢复。')) return;
+
+    fetch('/api/risks/' + id, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            location.reload();
+        } else {
+            alert('删除失败：' + (d.error || '未知错误'));
+        }
+    });
+}
+</script>
+{% endblock %}

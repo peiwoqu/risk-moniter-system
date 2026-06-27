@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+{% block title %}{{ enterprise.name }} - 风险分析报告{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/enterprises">企业管理</a></li>
+        <li class="breadcrumb-item active">{{ enterprise.name }}</li>
+    </ol>
+</nav>
+
+<div class="row mb-4">
+    <div class="col">
+        <h2>{{ enterprise.name }}
+            {% if enterprise.stock_code %}<small class="text-muted fs-6">({{ enterprise.stock_code }})</small>{% endif %}
+        </h2>
+        <span class="text-muted small">
+            {% if enterprise.industry %}<span class="badge bg-secondary me-1">{{ enterprise.industry }}</span>{% endif %}
+            {% if enterprise.last_analyzed %}上次分析：{{ enterprise.last_analyzed[:19] }}{% endif %}
+        </span>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-success" onclick="runAnalysis()">
+            <i class="bi bi-cpu"></i> 重新AI分析
+        </button>
+        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addDataModal">
+            <i class="bi bi-plus-square"></i> 补充数据
+        </button>
+        <a href="/reports?enterprise_id={{ enterprise.id }}" class="btn btn-outline-secondary">
+            <i class="bi bi-download"></i> 导出报告
+        </a>
+    </div>
+</div>
+
+<!-- ============ 第一部分：风险摘要 (300字) ============ -->
+<div class="row mb-4" id="section-summary">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-journal-text"></i> 一、风险分析摘要</h5>
+            </div>
+            <div class="card-body" id="summary-content">
+                <div id="summary-text" class="fs-6 lh-lg">
+                    {% if risks %}
+                        {% set total = risks|length %}
+                        {% set critical = risks|selectattr('risk_level', 'equalto', 'critical')|list|length %}
+                        {% set high = risks|selectattr('risk_level', 'equalto', 'high')|list|length %}
+                        {% set sorted_list = risks|sort(attribute='risk_score', reverse=True) %}
+                        {% set top3 = sorted_list[:3] %}
+                        <p>
+                            本报告基于COSO ERM 2017框架和ISO 31000标准，采用Multi-Agent智能分析引擎，
+                            对{{ enterprise.name }}的企业公开信息进行系统化风险分析。
+                            共识别<strong>{{ total }}</strong>项主要风险，其中重大风险<strong>{{ critical }}</strong>项、
+                            高度关注风险<strong>{{ high }}</strong>项。
+                            得分最高的三项风险为：
+                            <strong>{{ top3[0].name if top3|length > 0 else '无' }}{% if top3|length > 1 %}、{{ top3[1].name }}{% endif %}{% if top3|length > 2 %}、{{ top3[2].name }}{% endif %}</strong>。
+                            系统基于4T策略框架（规避/降低/转移/接受）为各项风险提出了应对方案和改进建议。
+                            分析数据来源为企业提供的公开信息文本（年报、公告、ESG报告等）。
+                        </p>
+                    {% else %}
+                        <p class="text-muted text-center">尚未进行风险分析，请点击「AI分析」按钮或录入企业数据后重试。</p>
+                    {% endif %}
+                </div>
+                {% if enterprise.raw_data_length > 0 %}
+                <small class="text-muted">数据源：已录入 {{ enterprise.raw_data_length }} 字符 | {% if risks %}{{ risks|length }} 项风险{% endif %}</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- ============ 第二部分：风险清单 ============ -->
+        <div class="card mb-4" id="section-list">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-list-ul"></i> 二、风险识别清单</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if risks %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>编号</th><th>风险名称</th>
+                                <th>类别</th><th>P</th><th>I</th>
+                                <th>得分</th><th>等级</th><th>趋势</th>
+                                <th>应对</th><th>详情</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for risk in risks %}
+                            <tr>
+                                <td><span class="badge bg-secondary">{{ risk.risk_code }}</span></td>
+                                <td><strong class="small">{{ risk.name[:30] }}{% if risk.name|length > 30 %}...{% endif %}</strong></td>
+                                <td class="small">{{ risk.subcategory or risk.category }}</td>
+                                <td>{{ risk.probability }}</td>
+                                <td>{{ risk.impact }}</td>
+                                <td><strong>{{ risk.risk_score }}</strong></td>
+                                <td><span class="badge bg-{{ risk.risk_level | risk_level_color }}">{{ risk.risk_level | risk_level_badge }}</span></td>
+                                <td class="small">{{ risk.trend | trend_icon }}</td>
+                                <td class="small">{% if risk.response_type == 'avoid' %}🚫规避{% elif risk.response_type == 'reduce' %}🛡️降低{% elif risk.response_type == 'transfer' %}🔄转移{% else %}✅接受{% endif %}</td>
+                                <td><a href="/risks/{{ risk.id }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye"></i></a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox" style="font-size:3rem"></i>
+                    <p class="mt-3">暂无风险数据</p>
+                    <button class="btn btn-success" onclick="runAnalysis()"><i class="bi bi-cpu"></i> 开始AI分析</button>
+                </div>
+                {% endif %}
+            </div>
+            {% if risks %}
+            <div class="card-footer">
+                <small class="text-muted">
+                    {% set critical = risks|selectattr('risk_level','equalto','critical')|list|length %}
+                    {% set high = risks|selectattr('risk_level','equalto','high')|list|length %}
+                    {% set medium = risks|selectattr('risk_level','equalto','medium')|list|length %}
+                    🔴重大={{ critical }} 🟠高度关注={{ high }} 🟡一般={{ medium }} 总计={{ risks|length }}
+                </small>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ============ 第三部分：风险矩阵 ============ -->
+        <div class="card mb-4" id="section-matrix">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-grid-3x3-gap"></i> 三、风险评估矩阵</h5>
+            </div>
+            <div class="card-body">
+                {% if risks %}
+                <div class="row">
+                    <div class="col-md-8">
+                        <canvas id="riskMatrixChart" height="380"></canvas>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>得分分布</h6>
+                        <canvas id="scoreDistChart" height="200"></canvas>
+                        <hr>
+                        <h6>趋势分布</h6>
+                        <div class="small">
+                            {% set inc = risks|selectattr('trend','equalto','increasing')|list|length %}
+                            {% set sta = risks|selectattr('trend','equalto','stable')|list|length %}
+                            {% set dec = risks|selectattr('trend','equalto','decreasing')|list|length %}
+                            <span class="text-danger">↑上升: {{ inc }}</span> |
+                            <span class="text-secondary">→稳定: {{ sta }}</span> |
+                            <span class="text-success">↓下降: {{ dec }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted text-center">暂无数据</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ============ 第四部分：应对建议 ============ -->
+        <div class="card mb-4" id="section-response">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-shield-check"></i> 四、风险应对与改进建议</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if risks %}
+                <div class="accordion" id="responseAccordion">
+                    {% for risk in risks %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#resp-{{ risk.risk_code }}">
+                                <span class="badge bg-{{ risk.risk_level | risk_level_color }} me-2">{{ risk.risk_code }}</span>
+                                {{ risk.name }}
+                                <span class="ms-2 small text-muted">得分: {{ risk.risk_score }}</span>
+                            </button>
+                        </h2>
+                        <div id="resp-{{ risk.risk_code }}" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>📋 当前应对措施</h6>
+                                        <p>{{ risk.current_response or '暂无明确措施记录' }}</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>💡 改进建议</h6>
+                                        <p>{{ risk.suggested_improvement or '暂无改进建议' }}</p>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <strong>应对策略：</strong>
+                                    <span class="badge bg-info">
+                                        {% if risk.response_type == 'avoid' %}🚫 风险规避
+                                        {% elif risk.response_type == 'reduce' %}🛡️ 风险降低
+                                        {% elif risk.response_type == 'transfer' %}🔄 风险转移
+                                        {% else %}✅ 风险接受{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3 text-muted">暂无数据</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- 侧边栏：统计概览 -->
+        <div class="card mb-3">
+            <div class="card-header"><strong><i class="bi bi-bar-chart"></i> 统计概览</strong></div>
+            <div class="card-body small">
+                {% if risks %}
+                    {% set total = risks|length %}
+                    {% set critical = risks|selectattr('risk_level','equalto','critical')|list|length %}
+                    {% set high = risks|selectattr('risk_level','equalto','high')|list|length %}
+                    {% set total_score = risks|map(attribute='risk_score')|sum %}
+                    <table class="table table-sm mb-0">
+                        <tr><td>风险总数</td><td><strong>{{ total }}</strong></td></tr>
+                        <tr><td>重大风险</td><td><span class="text-danger fw-bold">{{ critical }}</span></td></tr>
+                        <tr><td>高度关注</td><td><span class="text-warning fw-bold">{{ high }}</span></td></tr>
+                        <tr><td>平均得分</td><td><strong>{% if total > 0 %}{{ (total_score / total) | round(1) }}{% else %}0{% endif %}</strong></td></tr>
+                    </table>
+                {% else %}
+                    <p class="text-muted">无数据</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 侧边栏：内控评估 -->
+        <div class="card mb-3" id="section-control">
+            <div class="card-header"><strong><i class="bi bi-shield-lock"></i> 五、内部控制评估</strong></div>
+            <div class="card-body small">
+                {% if control_data %}
+                    <p>内控制度总数：<strong>{{ control_data.total_controls }}</strong></p>
+                    <p>已覆盖风险：<strong class="text-success">{{ control_data.covered_risks }}</strong></p>
+                    <p>未覆盖风险：<strong class="text-danger">{{ control_data.uncovered_risks }}</strong></p>
+                    <p>覆盖率：<strong>{{ control_data.coverage_rate }}</strong></p>
+                    {% if control_data.uncovered_details %}
+                    <hr><small class="text-danger">未覆盖风险：</small>
+                    <ul class="mb-0">
+                        {% for u in control_data.uncovered_details %}
+                        <li>{{ u.risk_code }} {{ u.risk_name }} (得分{{ u.risk_score }})</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                {% else %}
+                    <p class="text-muted">内控数据待加载</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 侧边栏：预警 -->
+        <div class="card mb-3">
+            <div class="card-header"><strong><i class="bi bi-bell"></i> 预警状态</strong></div>
+            <div class="card-body small" id="warnings-sidebar">
+                <div class="text-muted">加载中...</div>
+            </div>
+        </div>
+
+        <!-- 侧边栏：快速录入 -->
+        <div class="card">
+            <div class="card-header"><strong><i class="bi bi-upload"></i> 快速录入数据</strong></div>
+            <div class="card-body">
+                <textarea class="form-control form-control-sm mb-2" id="quick-text" rows="3"
+                          placeholder="粘贴年报摘要/新闻/公告..."></textarea>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm flex-fill" onclick="importText()">
+                        <i class="bi bi-plus-circle"></i> 录入文本</button>
+                    <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="document.getElementById('quick-file').click()">
+                        <i class="bi bi-file-earmark-arrow-up"></i> 上传文件</button>
+                </div>
+                <input type="file" class="d-none" id="quick-file" accept=".docx,.xlsx,.txt" onchange="importFile()">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- 补充数据模态框 -->
+<div class="modal fade" id="addDataModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">补充企业公开信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label"><strong>粘贴更多企业公开信息</strong>（年报「风险因素」章节、行业分析、新闻等）</label>
+                    <textarea class="form-control" id="modal-text" rows="15"
+                              placeholder="如：摘录企业年度报告中关于「重大风险提示」或「风险因素」的章节内容..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="importModalText()">提交并重新分析</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+const enterpriseId = {{ enterprise.id }};
+const risksData = {{ risks | tojson | safe }};
+
+function runAnalysis() {
+    const btn = event.target.tagName === 'BUTTON' ? event.target : document.querySelector('.btn-success');
+    if (btn && btn.disabled) return;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> AI分析中...'; }
+
+    fetch('/api/enterprises/' + enterpriseId + '/analyze', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showAlert('success', '分析完成！识别 ' + d.risk_count + ' 个风险');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('danger', '分析失败：' + (d.error || '未知错误'));
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-cpu"></i> 重新AI分析'; }
+        }
+    });
+}
+
+function importText() {
+    const text = document.getElementById('quick-text').value.trim();
+    if (!text) { alert('请先输入文本'); return; }
+    fetch('/api/enterprises/' + enterpriseId + '/import-text', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: text})
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) { showAlert('success', '文本已录入 (总计 ' + d.total_length + ' 字符)，正在重新分析...');
+            document.getElementById('quick-text').value = '';
+            setTimeout(() => runAnalysis(), 500);
+        } else showAlert('danger', '录入失败');
+    });
+}
+
+function importModalText() {
+    document.getElementById('quick-text').value = document.getElementById('modal-text').value;
+    bootstrap.Modal.getInstance('#addDataModal').hide();
+    importText();
+}
+
+function importFile() {
+    const file = document.getElementById('quick-file').files[0];
+    if (!file) return;
+    const fd = new FormData(); fd.append('file', file);
+    fetch('/api/enterprises/' + enterpriseId + '/import-file', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) { showAlert('success', '文件已导入 (' + d.extracted_chars + ' 字符)，正在重新分析...');
+            setTimeout(() => runAnalysis(), 500);
+        } else showAlert('danger', '导入失败');
+    });
+}
+
+// 初始化图表
+document.addEventListener('DOMContentLoaded', function() {
+    if (risksData && risksData.length > 0) {
+        try { renderRiskMatrixChart(risksData); } catch(e) { console.error(e); }
+        try { renderScoreDistribution(risksData); } catch(e) { console.error(e); }
+    }
+    // 加载预警
+    fetch('/api/warnings?unresolved=true')
+    .then(r => r.json())
+    .then(d => {
+        const el = document.getElementById('warnings-sidebar');
+        if (!d.success || !d.data || d.data.length === 0) {
+            el.innerHTML = '<span class="text-success">✅ 当前无预警</span>';
+        } else {
+            let html = '<ul class="list-unstyled mb-0">';
+            d.data.slice(0, 5).forEach(w => {
+                const icon = {'red':'🔴','orange':'🟠','yellow':'🟡'}[w.warning_level] || '';
+                html += `<li class="mb-1"><small>${icon} ${w.risk_name||''}</small></li>`;
+            });
+            html += '</ul>';
+            el.innerHTML = html;
+        }
+    });
+});
+</script>
+{% endblock %}

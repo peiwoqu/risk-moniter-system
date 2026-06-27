@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}M3 内控机制{% endblock %}
+{% block content %}
+{% if not enterprise %}
+<div class="text-center py-5"><h4>请先在 M1 模块添加企业</h4></div>
+{% elif not m3 %}
+<div class="text-center py-5"><i class="bi bi-inbox" style="font-size:3rem;color:#ccc"></i><p class="mt-3">尚未运行分析</p><a href="/module2?enterprise_id={{ enterprise.id }}" class="btn btn-primary">前往 M2 运行分析</a></div>
+{% else %}
+
+<div class="row mb-3"><div class="col"><h4><i class="bi bi-shield-lock"></i> M3: 内控机制 — {{ enterprise.name }}</h4>
+<p class="text-muted ms-2 small">基于 {{ risks_count }} 项风险分析结果 · 行业: {{ m3.industry }} · 自动生成针对性内控评估</p></div>
+<div class="col-auto"><button class="btn btn-success btn-sm" onclick="runAnalysis()"><i class="bi bi-arrow-repeat"></i> 刷新分析</button></div></div>
+
+<div class="accordion" id="m3Accordion">
+
+<!-- ======= 6.1 治理结构 ======= -->
+<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#sec61">
+  6.1 治理结构分析 — {{ m3.governance.structure_type }}</button></h2>
+<div id="sec61" class="accordion-collapse collapse show"><div class="accordion-body">
+  <div class="row"><div class="col-md-6">
+    <table class="table table-sm"><tr><td width="130">治理模式</td><td><strong>{{ m3.governance.structure_type }}</strong></td></tr>
+    <tr><td>董事会规模</td><td>{{ m3.governance.typical_board }}</td></tr>
+    <tr><td>独立董事占比</td><td>{{ m3.governance.independence_ratio }}</td></tr>
+    <tr><td>专门委员会</td><td><small>{{ m3.governance.committees }}</small></td></tr></table>
+  </div><div class="col-md-6 border-start">
+    <h6>治理结构描述</h6><p class="small">{{ m3.governance.description }}</p>
+    <div class="alert alert-warning py-1 small mb-1"><strong>董事会规模建议：</strong>{{ m3.governance.board_advice }}</div>
+    <div class="alert alert-info py-1 small mb-0"><strong>独立董事建议：</strong>{{ m3.governance.indep_advice }}</div>
+  </div></div>
+
+  {% if m3.governance.extra_committees %}
+  <hr><h6>建议增设的专门委员会</h6>
+  {% for ec in m3.governance.extra_committees %}
+  <div class="card mb-2"><div class="card-body py-2"><strong>{{ ec.name }}</strong><p class="small mb-0">{{ ec.reason }}</p></div></div>
+  {% endfor %}
+  {% endif %}
+
+  <div class="alert alert-primary py-2 mt-2 mb-0 small"><strong>综合建议：</strong>{{ m3.governance.recommendation }}</div>
+</div></div></div>
+
+<!-- ======= 6.2 三道防线 ======= -->
+<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#sec62">
+  6.2 三道防线模型 — 基于 {{ risks_count }} 项风险定制</button></h2>
+<div id="sec62" class="accordion-collapse collapse"><div class="accordion-body">
+  <div class="row">
+  {% for line in m3.three_lines %}
+  <div class="col-md-4">
+    <div class="card h-100"><div class="card-header bg-{% if line.line==1 %}primary{% elif line.line==2 %}warning{% else %}danger{% endif %} text-white"><strong>{{ line.name }}</strong></div>
+    <div class="card-body small">
+      <p><strong>负责部门：</strong>{{ line.department }}</p>
+      <p><strong>职责：</strong>{{ line.responsibility }}</p>
+      <p><strong>{{ line.risk_focus }}</strong></p>
+      <hr>
+      <p class="mb-1"><strong>有效性：</strong><span class="badge bg-{% if line.effectiveness=='有效' %}success{% else %}warning{% endif %}">{{ line.effectiveness }}</span></p>
+      <p class="mb-0 text-muted"><strong>改进：</strong>{{ line.improvement }}</p>
+    </div></div>
+  </div>
+  {% endfor %}
+  </div>
+</div></div></div>
+
+<!-- ======= 6.3 内控制度 ======= -->
+<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#sec63">
+  6.3 内控制度分析 — {{ m3.coverage.total }} 项制度 · 覆盖率 {{ m3.coverage.coverage_rate }}</button></h2>
+<div id="sec63" class="accordion-collapse collapse"><div class="accordion-body p-0">
+  <div class="accordion" id="ctrlAccordion">
+  {% for c in m3.coverage.controls %}
+  <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed py-2" data-bs-toggle="collapse" data-bs-target="#ctrl{{ loop.index }}">
+    <span class="badge bg-secondary me-2">{{ c.control_code }}</span> {{ c.name }}
+    <span class="badge bg-{% if c.effectiveness_class=='warning' %}warning{% elif c.effectiveness_class=='info' %}info{% else %}secondary{% endif %} ms-2">{{ c.effectiveness }}</span>
+    {% if c.covers_risks %}<span class="ms-2 small text-muted">覆盖 {% for rc in c.covers_risks %}{{ rc }} {% endfor %}</span>{% endif %}
+  </button></h2>
+  <div id="ctrl{{ loop.index }}" class="accordion-collapse collapse"><div class="accordion-body small">
+    <p><strong>类别：</strong>{{ c.category }} | <strong>描述：</strong>{{ c.description }}</p>
+    <p><strong>有效性评估：</strong>{{ c.effectiveness_detail }}</p>
+    {% if c.covers_risk_details %}
+    <p><strong>覆盖风险详情：</strong>
+    <table class="table table-sm mt-1"><thead><tr><th>编号</th><th>风险名称</th><th>得分</th></tr></thead><tbody>
+    {% for rd in c.covers_risk_details %}<tr><td>{{ rd.code }}</td><td>{{ rd.name[:40] }}</td><td>{{ rd.score }}</td></tr>{% endfor %}
+    </tbody></table></p>
+    {% endif %}
+    <div class="alert alert-info py-1 mb-0"><strong>针对性改进建议：</strong>{{ c.improvement }}</div>
+  </div></div></div>
+  {% endfor %}
+  </div>
+</div></div></div>
+
+<!-- ======= 6.4 覆盖评估 ======= -->
+<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#sec64">
+  6.4 内控覆盖评估与改进建议 — 覆盖率 {{ m3.coverage.coverage_rate }}</button></h2>
+<div id="sec64" class="accordion-collapse collapse show"><div class="accordion-body">
+  <div class="row"><div class="col-md-4 text-center border-end">
+    <h2 class="text-{% if m3.coverage.coverage_rate|replace('%','')|int>=80 %}success{% elif m3.coverage.coverage_rate|replace('%','')|int>=50 %}warning{% else %}danger{% endif %}">{{ m3.coverage.coverage_rate }}</h2>
+    <p class="text-muted">内控覆盖率</p>
+    <p>已覆盖 {{ m3.coverage.covered_risks }}/{{ m3.coverage.total_risks }} 项风险</p>
+    <p>内控制度 {{ m3.coverage.total }} 项</p>
+  </div><div class="col-md-8">
+    <div class="alert alert-{% if m3.coverage.coverage_rate|replace('%','')|int>=80 %}success{% elif m3.coverage.coverage_rate|replace('%','')|int>=50 %}warning{% else %}danger{% endif %} py-2 small">{{ m3.coverage.coverage_assessment }}</div>
+
+    {% if m3.coverage.uncovered_risks %}
+    <h6>⚠️ 未覆盖风险</h6>
+    <table class="table table-sm"><thead><tr><th>编号</th><th>名称</th><th>得分</th><th>等级</th></tr></thead><tbody>
+    {% for u in m3.coverage.uncovered_risks %}
+    <tr><td>{{ u.risk_code }}</td><td>{{ u.name[:40] }}</td><td>{{ u.risk_score }}</td><td><span class="badge bg-{% if u.risk_level=='critical' %}danger{% elif u.risk_level=='high' %}warning{% else %}info{% endif %}">{{ u.risk_level }}</span></td></tr>
+    {% endfor %}
+    </tbody></table>
+    {% endif %}
+
+    <h6>改进建议</h6>
+    <ol class="small mb-0">
+    {% for sug in m3.coverage.improvement_suggestions %}<li class="mb-1">{{ sug }}</li>{% endfor %}
+    </ol>
+  </div></div>
+</div></div></div>
+
+</div><!-- end m3Accordion -->
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function runAnalysis(){const b=event.target.tagName==='BUTTON'?event.target:document.querySelector('.btn-success');b.disabled=true;b.innerHTML='<span class="spinner-border spinner-border-sm"></span> 分析中...';fetch('/api/enterprises/{{ enterprise.id }}/analyze',{method:'POST'}).then(r=>r.json()).then(d=>{setTimeout(()=>location.reload(),1000)})}
+</script>
+{% endblock %}

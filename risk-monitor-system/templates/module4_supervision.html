@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}M4 监督改进{% endblock %}
+{% block content %}
+{% if not enterprise %}
+<div class="text-center py-5"><h4>请先在 M1 模块添加企业</h4></div>
+{% elif not m4 %}
+<div class="text-center py-5"><i class="bi bi-inbox" style="font-size:3rem;color:#ccc"></i><p class="mt-3">尚未运行分析</p><a href="/module2?enterprise_id={{ enterprise.id }}" class="btn btn-primary">前往 M2 运行分析</a></div>
+{% else %}
+
+<div class="row mb-3"><div class="col"><h4><i class="bi bi-graph-up-arrow"></i> M4: 监督改进 — {{ enterprise.name }}</h4>
+<p class="text-muted ms-2 small">基于 {{ risks_count }} 项风险 · {{ critical_count }} 项重大风险 · 行业: {{ m4.industry }} · 自动生成监督改进分析</p></div>
+<div class="col-auto"><button class="btn btn-success btn-sm" onclick="runAnalysis()"><i class="bi bi-arrow-repeat"></i> 刷新分析</button></div></div>
+
+<!-- 监督体系评估 -->
+<div class="alert alert-{% if critical_count>=3 %}danger{% elif critical_count>=1 %}warning{% else %}info{% endif %} mb-3 py-2">
+  <strong>📋 监督体系综合评估：</strong>{{ m4.supervision_assessment }}
+</div>
+
+<div class="accordion" id="m4Accordion">
+
+<!-- ======= 7.1 监督机制 ======= -->
+<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#sec71">
+  7.1 监督机制分析 — {{ m4.mechanisms|length }} 项监督安排</button></h2>
+<div id="sec71" class="accordion-collapse collapse show"><div class="accordion-body p-0">
+  <div class="accordion" id="mechAccordion">
+  {% for m in m4.mechanisms %}
+  <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed py-2" data-bs-toggle="collapse" data-bs-target="#mech{{ loop.index }}">
+    <span class="badge bg-{% if m.mechanism_type=='board' %}primary{% elif m.mechanism_type=='internal_audit' %}warning{% elif m.mechanism_type=='external' %}info{% else %}secondary{% endif %} me-2">{{ {'board':'董事会级','internal_audit':'内部审计','external':'外部监督','supervisory':'监管监督','compliance':'合规调查'}.get(m.mechanism_type,m.mechanism_type) }}</span>
+    {{ m.mechanism_name }}
+    <span class="badge bg-{% if m.effectiveness=='有效' %}success{% elif m.effectiveness=='需立即加强' %}danger{% else %}warning{% endif %} ms-2 small">{{ m.effectiveness }}</span>
+  </button></h2>
+  <div id="mech{{ loop.index }}" class="accordion-collapse collapse"><div class="accordion-body small">
+    <div class="row"><div class="col-md-8">
+      <p><strong>描述：</strong>{{ m.description }}</p>
+      <p><strong>监督频次：</strong>{{ m.frequency }} | <strong>责任人/方：</strong>{{ m.responsible_party }}</p>
+    </div><div class="col-md-4 border-start">
+      <p class="mb-1"><strong>有效性评估：</strong></p>
+      <p class="text-muted">{{ m.effectiveness_detail }}</p>
+    </div></div>
+  </div></div></div>
+  {% endfor %}
+  </div>
+</div></div></div>
+
+<!-- ======= 7.2 信息披露 ======= -->
+<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#sec72">
+  7.2 信息披露分析</button></h2>
+<div id="sec72" class="accordion-collapse collapse"><div class="accordion-body p-0">
+  <table class="table table-sm table-hover mb-0"><thead class="table-light">
+  <tr><th>披露类型</th><th>风险披露状态</th><th>针对性改进建议</th></tr></thead><tbody>
+  {% for d in m4.disclosures %}
+  <tr><td><strong>{{ d.disclosure_type }}</strong></td>
+  <td><span class="badge bg-{% if d.risk_disclosure_status=='合规' %}success{% elif d.risk_disclosure_status=='基本合规' %}info{% else %}warning{% endif %}">{{ d.risk_disclosure_status }}</span></td>
+  <td><small>{{ d.recommendation }}</small></td></tr>
+  {% endfor %}
+  </tbody></table>
+</div></div></div>
+
+<!-- ======= 7.3 问题与改进 ======= -->
+<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#sec73">
+  7.3 发现问题与改进 — 自动识别 {{ m4.issues|length }} 项问题
+  {% set ci = m4.issues|selectattr('severity','equalto','critical')|list|length %}
+  {% if ci > 0 %}<span class="badge bg-danger ms-2">{{ ci }} 项严重</span>{% endif %}
+</button></h2>
+<div id="sec73" class="accordion-collapse collapse"><div class="accordion-body p-0">
+  <div class="accordion" id="issueAccordion">
+  {% for iss in m4.issues %}
+  <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed py-2" data-bs-toggle="collapse" data-bs-target="#iss{{ iss.id }}">
+    <span class="badge bg-{% if iss.severity=='critical' %}danger{% elif iss.severity=='high' %}warning{% else %}info{% endif %} me-2">{{ iss.id }}</span>
+    {{ iss.title[:70] }}{% if iss.title|length>70 %}...{% endif %}
+    <span class="badge bg-{% if iss.severity=='critical' %}danger{% elif iss.severity=='high' %}warning{% else %}info{% endif %} ms-2">{{ iss.severity }}</span>
+    {% if iss.auto_generated %}<span class="badge bg-info ms-1">自动识别</span>{% endif %}
+  </button></h2>
+  <div id="iss{{ iss.id }}" class="accordion-collapse collapse"><div class="accordion-body small">
+    <div class="row"><div class="col-md-8">
+      <h6>问题描述</h6><p>{{ iss.description }}</p>
+      <h6>拟采取措施</h6><p>{{ iss.proposed_action }}</p>
+    </div><div class="col-md-4 border-start">
+      <p><strong>来源：</strong>{{ {'auto_analysis':'Agent自动分析','internal_audit':'内部审计','regulatory':'监管发现','self_assessment':'自我评估','incident':'事件驱动'}.get(iss.source,'Agent分析') }}</p>
+      <p><strong>截止时间：</strong><span class="text-{% if iss.deadline and '立即' in iss.deadline %}danger fw-bold{% endif %}">{{ iss.deadline }}</span></p>
+      {% if iss.related_risk %}<p><strong>关联风险：</strong><span class="badge bg-warning">{{ iss.related_risk }}</span></p>{% endif %}
+    </div></div>
+  </div></div></div>
+  {% endfor %}
+  </div>
+</div></div></div>
+
+<!-- ======= 7.4 持续改进PDCA ======= -->
+<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#sec74">
+  7.4 持续改进 — PDCA循环</button></h2>
+<div id="sec74" class="accordion-collapse collapse show"><div class="accordion-body">
+  <h6>{{ m4.pdca.current_cycle }}</h6>
+  <div class="row mt-2">
+  {% for phase in m4.pdca.phases %}
+  <div class="col-md-3"><div class="card h-100 border-{% if loop.index==1 %}primary{% elif loop.index==2 %}warning{% elif loop.index==3 %}info{% else %}success{% endif %}"><div class="card-body py-2 small">
+    <strong class="text-{% if loop.index==1 %}primary{% elif loop.index==2 %}warning{% elif loop.index==3 %}info{% else %}success{% endif %}">{{ phase[0] }}</strong>
+    <p class="mb-0 mt-1">{{ phase[1][:150] }}</p>
+  </div></div></div>
+  {% endfor %}
+  </div>
+  <hr>
+  <h6>经验教训</h6>
+  <ul class="small mb-0">
+  {% for l in m4.pdca.lessons_learned %}<li>{{ l }}</li>{% endfor %}
+  </ul>
+</div></div></div>
+
+</div><!-- end m4Accordion -->
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function runAnalysis(){const b=event.target.tagName==='BUTTON'?event.target:document.querySelector('.btn-success');b.disabled=true;b.innerHTML='<span class="spinner-border spinner-border-sm"></span> 分析中...';fetch('/api/enterprises/{{ enterprise.id }}/analyze',{method:'POST'}).then(r=>r.json()).then(d=>{setTimeout(()=>location.reload(),1000)})}
+</script>
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}M5 报告输出{% endblock %}
+{% block content %}
+{% if not enterprise %}
+<div class="text-center py-5 text-muted"><h4>请先在 M1 模块添加企业并运行分析</h4></div>
+{% else %}
+<div class="row mb-3"><div class="col"><h4><i class="bi bi-file-earmark-text"></i> M5: 报告输出 - {{ enterprise.name }}</h4>
+<p class="text-muted ms-2"><small>生成与主报告结构对应的完整风险管理报告</small></p></div>
+<div class="col-auto">
+    <button class="btn btn-primary" onclick="generateReport()"><i class="bi bi-download"></i> 生成Word报告</button>
+    <button class="btn btn-outline-success btn-sm" onclick="generateReport('excel')"><i class="bi bi-file-earmark-excel"></i> 导出Excel清单</button>
+</div></div>
+
+<div class="row">
+    <div class="col-md-8">
+        {% if risks %}
+        <!-- 报告预览（匹配主报告8节结构） -->
+        <div class="card"><div class="card-header"><strong>报告预览 — 结构同《企业全面风险管理报告》</strong></div>
+        <div class="card-body" style="max-height:600px;overflow-y:auto">
+            <h3 class="text-center">{{ enterprise.name }} 企业全面风险管理报告</h3>
+            <hr>
+
+            <!-- 摘要 -->
+            <h5>摘要</h5>
+            {% set total = risks|length %}
+            {% set critical = risks|selectattr('risk_level','equalto','critical')|list|length %}
+            {% set high = risks|selectattr('risk_level','equalto','high')|list|length %}
+            {% set sorted_r = risks|sort(attribute='risk_score',reverse=True) %}
+            {% set top3 = sorted_r[:3] %}
+            <p class="small">本报告基于COSO ERM 2017框架和ISO 31000标准，采用Multi-Agent智能分析引擎，对{{ enterprise.name }}的企业公开信息进行系统化风险分析。共识别<strong>{{ total }}</strong>项主要风险，其中重大风险<strong>{{ critical }}</strong>项、高度关注风险<strong>{{ high }}</strong>项。得分最高的风险为：<strong>{{ top3[0].name if top3|length>0 else '-' }}、{{ top3[1].name if top3|length>1 else '-' }}、{{ top3[2].name if top3|length>2 else '-' }}</strong>。系统基于4T策略框架提出了应对方案和改进建议。内控覆盖率{{ coverage.coverage_rate }}，自动识别改进问题{{ issues|length }}项。</p>
+
+            <!-- 1. 公司概况 -->
+            <h5>1. 公司概况</h5>
+            <table class="table table-sm small"><tr><td width="100">名称</td><td>{{ enterprise.name }}</td></tr>
+            <tr><td>股票代码</td><td>{{ enterprise.stock_code or '-' }}</td></tr>
+            <tr><td>行业</td><td>{{ enterprise.industry or '-' }}</td></tr>
+            <tr><td>数据源</td><td>{{ enterprise.raw_data_length }} 字符</td></tr></table>
+
+            <!-- 2. 主营业务（基于录入数据） -->
+            <h5>2. 主营业务</h5>
+            <p class="small">{{ enterprise.description or '（需在M1模块补充企业公开信息以获得详细分析）' }}</p>
+
+            <!-- 3. 风险治理基础 -->
+            <h5>3. 风险治理基础</h5>
+            <p class="small">治理模式：{{ governance.structure_type or '待分析' }} | 董事会：{{ governance.typical_board or '-' }} | 专门委员会：{{ governance.committees or '-' }} | 独立董事占比：{{ governance.independence_ratio or '-' }}</p>
+            <p class="small">三道防线：业务部门（第一道）→ 风险管理部/合规部（第二道）→ 内部审计（第三道）</p>
+
+            <!-- 4. 风险评估 -->
+            <h5>4. 风险评估</h5>
+            <div class="table-responsive"><table class="table table-sm small"><thead class="table-light">
+            <tr><th>编号</th><th>风险名称</th><th>类别</th><th>P</th><th>I</th><th>得分</th><th>等级</th><th>趋势</th></tr></thead><tbody>
+            {% for r in risks %}
+            <tr><td>{{ r.risk_code }}</td><td>{{ r.name }}</td><td><small>{{ r.subcategory }}</small></td><td>{{ r.probability }}</td><td>{{ r.impact }}</td><td><strong>{{ r.risk_score }}</strong></td><td><span class="badge bg-{{ r.risk_level|risk_level_color }}">{{ r.risk_level|risk_level_badge }}</span></td><td>{{ r.trend|trend_icon }}</td></tr>
+            {% endfor %}
+            </tbody></table></div>
+
+            <!-- 5. 风险应对 -->
+            <h5>5. 风险应对</h5>
+            {% for r in risks[:4] %}
+            <p class="small mb-1"><strong>{{ r.risk_code }} {{ r.name }}：</strong>
+                {% if r.response_type=='avoid' %}🚫规避{% elif r.response_type=='reduce' %}🛡️降低{% elif r.response_type=='transfer' %}🔄转移{% else %}✅接受{% endif %} |
+                改进建议：{{ r.suggested_improvement[:120] if r.suggested_improvement else '待分析' }}</p>
+            {% endfor %}
+
+            <!-- 6. 内控机制 -->
+            <h5>6. 内控机制</h5>
+            <p class="small">内控制度{{ coverage.total }}项 | 覆盖率{{ coverage.coverage_rate }} | 已覆盖{{ coverage.covered_risks }}/{{ coverage.total_risks }}项风险</p>
+            {% if coverage.uncovered_risks %}<p class="small text-danger">未覆盖风险：{% for u in coverage.uncovered_risks %}{{ u.risk_code }} {% endfor %}</p>{% endif %}
+            {% if coverage.improvement_suggestions %}
+            <p class="small"><strong>改进建议：</strong>{% for sug in coverage.improvement_suggestions[:2] %}{{ sug }}；{% endfor %}</p>
+            {% endif %}
+
+            <!-- 7. 监督改进 -->
+            <h5>7. 监督改进</h5>
+            <p class="small">监督机制{{ mechanisms|length }}项 | 自动识别问题{{ issues|length }}项 |
+               严重问题{{ issues|selectattr('severity','equalto','critical')|list|length }}项</p>
+            {% if supervision_assessment %}<p class="small"><strong>评估：</strong>{{ supervision_assessment[:200] }}</p>{% endif %}
+
+            <!-- 8. 总结与建议 -->
+            <h5>8. 总结与建议</h5>
+            <p class="small">综合分析，{{ enterprise.name }}面临<strong>{{ total }}项</strong>主要风险（重大{{ critical }}项、高度关注{{ high }}项），内控覆盖率<strong>{{ coverage.coverage_rate }}</strong>，自动识别<strong>{{ issues|length }}项</strong>改进问题。建议优先处理得分最高的重大风险，加强内控制度建设，完善PDCA持续改进循环。</p>
+        </div></div>
+        {% else %}
+        <div class="text-center py-5 text-muted"><i class="bi bi-inbox" style="font-size:3rem"></i><p class="mt-3">尚未运行分析</p><a href="/module2?enterprise_id={{ enterprise.id }}" class="btn btn-primary">前往 M2 风险分析</a></div>
+        {% endif %}
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-3"><div class="card-header"><strong>报告生成</strong></div><div class="card-body">
+            <div class="d-grid gap-2">
+                <button class="btn btn-primary" onclick="generateReport()"><i class="bi bi-file-earmark-word"></i> 生成Word完整报告</button>
+                <button class="btn btn-outline-success" onclick="generateReport('excel')"><i class="bi bi-file-earmark-excel"></i> 风险清单(Excel)</button>
+            </div>
+            <div id="report-result" class="mt-2"></div>
+        </div></div>
+        <div class="card"><div class="card-header"><strong>报告结构</strong></div><div class="card-body small">
+            <ol class="mb-0"><li>摘要</li><li>公司概况</li><li>主营业务</li><li>风险治理基础</li><li>风险评估（风险矩阵）</li><li>风险应对（4T策略）</li><li>内控机制评估</li><li>监督改进状况</li><li>总结与建议</li></ol>
+        </div></div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function generateReport(type){
+    const rdiv=document.getElementById('report-result');
+    rdiv.innerHTML='<div class="spinner-border spinner-border-sm"></div> 生成中...';
+    fetch('/api/reports/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enterprise_id:{{ enterprise.id if enterprise else 1 }},report_type:type||'full'})})
+    .then(r=>r.json()).then(d=>{
+        if(d.success){rdiv.innerHTML=`<div class="alert alert-success py-1 small">已生成！<br><a href="/api/reports/download/${encodeURIComponent(d.data.filename)}" class="btn btn-sm btn-outline-primary mt-1"><i class="bi bi-download"></i> 下载</a></div>`;window.open('/api/reports/download/'+encodeURIComponent(d.data.filename))}
+        else rdiv.innerHTML=`<div class="alert alert-danger py-1">${d.error||'失败'}</div>`
+    })
+}
+</script>
+{% endblock %}

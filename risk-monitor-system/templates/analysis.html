@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}AI分析 - Agent智能风险监控管理系统{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-cpu"></i> AI智能分析</h2>
+        <p class="text-muted">基于Multi-Agent架构的智能风险分析引擎</p>
+    </div>
+</div>
+
+<!-- Agent流程图 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="mb-3">Multi-Agent 协作流程</h5>
+                <div class="row align-items-center">
+                    <div class="col-md-2">
+                        <div class="border rounded p-2 bg-primary text-white">
+                            <i class="bi bi-person-check" style="font-size: 1.5rem;"></i>
+                            <h6 class="mt-1 mb-0">用户输入</h6>
+                            <small>企业信息/年报数据</small>
+                        </div>
+                    </div>
+                    <div class="col-md-1"><h4>→</h4></div>
+                    <div class="col-md-2">
+                        <div class="border rounded p-2 bg-info text-white">
+                            <i class="bi bi-robot" style="font-size: 1.5rem;"></i>
+                            <h6 class="mt-1 mb-0">Supervisor</h6>
+                            <small>任务编排与调度</small>
+                        </div>
+                    </div>
+                    <div class="col-md-1"><h4>→</h4></div>
+                    <div class="col-md-6">
+                        <div class="row">
+                            <div class="col-3">
+                                <div class="border rounded p-1 bg-light small">
+                                    <strong>🔍 识别Agent</strong><br>风险识别
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="border rounded p-1 bg-light small">
+                                    <strong>📊 评估Agent</strong><br>风险评估
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="border rounded p-1 bg-light small">
+                                    <strong>🔔 预警Agent</strong><br>预警检测
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="border rounded p-1 bg-light small">
+                                    <strong>🛡️ 应对Agent</strong><br>应对建议
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 分析操作面板 -->
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-sliders"></i> 分析操作</h5></div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" onclick="runStep('full')">
+                        <i class="bi bi-play-fill"></i> 运行完整分析流程
+                    </button>
+                    <button class="btn btn-outline-primary" onclick="runStep('identify')">
+                        <i class="bi bi-1-circle"></i> Step 1: 风险识别
+                    </button>
+                    <button class="btn btn-outline-warning" onclick="runStep('assess')">
+                        <i class="bi bi-2-circle"></i> Step 2: 风险评估
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="runStep('warn')">
+                        <i class="bi bi-3-circle"></i> Step 3: 预警检测
+                    </button>
+                    <button class="btn btn-outline-success" onclick="runStep('respond')">
+                        <i class="bi bi-4-circle"></i> Step 4: 应对建议
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 企业信息输入 -->
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-building"></i> 企业信息</h5></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">企业名称</label>
+                    <input type="text" class="form-control" id="enterprise" value="腾讯控股">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">企业信息（留空使用内置数据）</label>
+                    <textarea class="form-control" id="enterprise-info" rows="4"
+                              placeholder="输入企业基本信息、年报摘要等..."></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">上传文件（可选）</label>
+                    <input type="file" class="form-control" id="file-upload" accept=".docx,.txt,.pdf">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分析结果 -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-terminal"></i> 分析结果</h5>
+                <span id="analysis-status" class="badge bg-secondary">就绪</span>
+            </div>
+            <div class="card-body">
+                <div id="analysis-result" style="max-height: 500px; overflow-y: auto;">
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-cpu" style="font-size: 3rem;"></i>
+                        <p class="mt-3">点击分析按钮开始AI风险分析</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function runStep(step) {
+    const status = document.getElementById('analysis-status');
+    const result = document.getElementById('analysis-result');
+
+    const endpoints = {
+        'full': '/api/analysis/full',
+        'identify': '/api/analysis/identify',
+        'assess': '/api/analysis/assess',
+        'warn': '/api/analysis/warn',
+        'respond': '/api/analysis/respond',
+    };
+
+    const labels = {
+        'full': '完整分析',
+        'identify': '风险识别',
+        'assess': '风险评估',
+        'warn': '预警检测',
+        'respond': '应对建议',
+    };
+
+    status.className = 'badge bg-warning';
+    status.textContent = '分析中...';
+    result.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary"></div><p class="mt-2">正在执行' + labels[step] + '...</p></div>';
+
+    const body = {
+        enterprise_name: document.getElementById('enterprise').value || '腾讯控股',
+        enterprise_info: document.getElementById('enterprise-info').value || ''
+    };
+
+    fetch(endpoints[step], {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            status.className = 'badge bg-success';
+            status.textContent = '完成';
+
+            let html = '<div class="alert alert-success small py-1 mb-2">✅ ' + labels[step] + '完成</div>';
+
+            if (step === 'full') {
+                const meta = d.data.pipeline_metadata;
+                html += '<p><strong>分析摘要：</strong></p>';
+                html += '<ul class="small">';
+                html += '<li>识别风险：' + meta.risks_count + ' 项</li>';
+                html += '<li>触发预警：' + meta.warnings_count + ' 项</li>';
+                html += '<li>重大风险：' + meta.critical_count + ' 项</li>';
+                html += '<li>高度关注：' + meta.high_count + ' 项</li>';
+                html += '</ul>';
+                html += '<p class="small text-muted">详细结果已同步到数据库。请查看仪表盘和风险管理页面获取完整信息。</p>';
+            } else if (d.data && Array.isArray(d.data)) {
+                html += '<p class="small">共返回 ' + d.data.length + ' 条结果</p>';
+                html += '<pre class="small bg-light p-2" style="max-height:300px;overflow-y:auto">';
+                html += JSON.stringify(d.data.slice(0, 5), null, 2);
+                if (d.data.length > 5) html += '\n... (共' + d.data.length + '条)';
+                html += '</pre>';
+            } else {
+                html += '<pre class="small bg-light p-2" style="max-height:300px;overflow-y:auto">';
+                html += JSON.stringify(d.data, null, 2);
+                html += '</pre>';
+            }
+            result.innerHTML = html;
+        } else {
+            status.className = 'badge bg-danger';
+            status.textContent = '失败';
+            result.innerHTML = '<div class="alert alert-danger">' + (d.error || '分析失败') + '</div>';
+        }
+    })
+    .catch(err => {
+        status.className = 'badge bg-danger';
+        status.textContent = '错误';
+        result.innerHTML = '<div class="alert alert-danger">网络错误：' + err.message + '</div>';
+    });
+}
+</script>
+{% endblock %}

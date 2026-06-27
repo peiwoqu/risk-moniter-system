@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}企业管理 - Agent智能风险监控管理系统{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col"><h2><i class="bi bi-building"></i> 企业管理</h2>
+        <p class="text-muted">录入企业公开信息，AI自动完成风险识别、评估、预警和应对建议</p></div>
+    <div class="col-auto">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEnterpriseModal">
+            <i class="bi bi-plus-lg"></i> 添加企业
+        </button>
+    </div>
+</div>
+
+<!-- 工作流说明 -->
+<div class="alert alert-info mb-4">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-info-circle me-2 fs-4"></i>
+        <div><strong>使用流程：</strong>
+            <span class="mx-2">① 添加企业基本信息</span> →
+            <span class="mx-2">② 录入公开信息（年报摘要/新闻/公告）或上传文件</span> →
+            <span class="mx-2">③ 点击「AI分析」自动完成风险识别</span> →
+            <span class="mx-2">④ 查看结果并导出报告</span>
+        </div>
+    </div>
+</div>
+
+<!-- 企业列表 -->
+<div class="row" id="enterprise-list">
+    {% if enterprises %}
+        {% for e in enterprises %}
+        <div class="col-md-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title">
+                                <a href="/enterprises/{{ e.id }}" class="text-decoration-none">
+                                    {{ e.name }}
+                                </a>
+                                {% if e.stock_code %}
+                                <small class="text-muted">({{ e.stock_code }})</small>
+                                {% endif %}
+                            </h5>
+                            {% if e.industry %}<span class="badge bg-secondary">{{ e.industry }}</span>{% endif %}
+                        </div>
+                        <button class="btn btn-outline-danger btn-sm" onclick="deleteEnterprise({{ e.id }})"
+                                title="删除"><i class="bi bi-trash"></i></button>
+                    </div>
+                    <p class="card-text small text-muted mt-2">
+                        {% if e.description %}{{ e.description[:150] }}{% else %}暂无描述{% endif %}
+                    </p>
+                    <div class="d-flex gap-2 text-muted small">
+                        <span><i class="bi bi-file-text"></i> 原始数据：{{ e.raw_data_length }} 字符</span>
+                        <span><i class="bi bi-exclamation-triangle"></i> 风险：{{ e.risk_count }} 项</span>
+                        {% if e.last_analyzed %}
+                        <span><i class="bi bi-clock"></i> 上次分析：{{ e.last_analyzed[:10] }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex gap-2">
+                        <a href="/enterprises/{{ e.id }}" class="btn btn-outline-primary btn-sm flex-fill">
+                            <i class="bi bi-eye"></i> 查看详情
+                        </a>
+                        <button class="btn btn-success btn-sm flex-fill"
+                                onclick="analyzeEnterprise({{ e.id }}, this)">
+                            <i class="bi bi-cpu"></i> AI分析
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-building-add" style="font-size: 3rem;"></i>
+                <p class="mt-3 fs-5">暂无企业数据</p>
+                <p>点击「添加企业」录入第一家企业信息，或运行下方按钮预置腾讯案例。</p>
+                <button class="btn btn-outline-primary" onclick="seedTencent()">
+                    <i class="bi bi-lightning"></i> 一键预置腾讯控股案例
+                </button>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- 添加企业模态框 -->
+<div class="modal fade" id="addEnterpriseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title"><i class="bi bi-plus-lg"></i> 添加企业</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <form id="add-enterprise-form" enctype="multipart/form-data">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">企业名称 *</label>
+                            <input type="text" class="form-control" name="name" required
+                                   placeholder="如：比亚迪、阿里巴巴、招商银行">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">股票代码</label>
+                            <input type="text" class="form-control" name="stock_code"
+                                   placeholder="如：002594.SZ">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">行业</label>
+                            <select class="form-select" name="industry">
+                                <option value="">请选择</option>
+                                <option>互联网科技</option><option>制造业</option><option>金融</option>
+                                <option>消费</option><option>能源</option><option>医药</option>
+                                <option>房地产</option><option>汽车</option><option>其他</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">企业描述</label>
+                        <textarea class="form-control" name="description" rows="2"
+                                  placeholder="企业主营业务、市场地位等简要描述"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <strong>企业公开信息</strong>
+                            <small class="text-muted">（年报摘要、风险披露、新闻、公告等——越详细AI分析越准确）</small>
+                        </label>
+                        <textarea class="form-control" name="raw_data_text" rows="8"
+                                  placeholder="粘贴企业公开信息，例如：
+企业年度报告中「风险因素」章节的内容摘要...
+最新的监管政策动态...
+行业竞争格局和市场地位变化...
+财务数据和经营状况概要...
+ESG报告中披露的风险信息..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">上传文件（可选，支持Word/Excel/TXT）</label>
+                        <input type="file" class="form-control" name="files" multiple
+                               accept=".docx,.doc,.xlsx,.xls,.txt">
+                        <small class="text-muted">系统会自动从上传的文件中提取文本进行分析</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitEnterprise()">
+                    <i class="bi bi-check-lg"></i> 创建并开始分析
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function submitEnterprise() {
+    const form = document.getElementById('add-enterprise-form');
+    const formData = new FormData(form);
+
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 创建中...';
+
+    fetch('/api/enterprises', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            bootstrap.Modal.getInstance('#addEnterpriseModal').hide();
+            const eid = d.data.id;
+            showAlert('success', '企业创建成功！正在运行AI分析...');
+            // 自动触发AI分析
+            analyzeEnterprise(eid);
+        } else {
+            showAlert('danger', '创建失败：' + (d.error || '未知错误'));
+        }
+    })
+    .catch(err => showAlert('danger', '请求失败：' + err.message))
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> 创建并开始分析';
+    });
+}
+
+function analyzeEnterprise(eid, btn) {
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 分析中...';
+    }
+
+    fetch('/api/enterprises/' + eid + '/analyze', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showAlert('success', 'AI分析完成！识别 ' + d.risk_count + ' 个风险');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('danger', '分析失败：' + (d.error || '未知错误'));
+        }
+    })
+    .catch(err => showAlert('danger', '请求失败：' + err.message))
+    .finally(() => {
+        if (btn) location.reload();
+    });
+}
+
+function deleteEnterprise(eid) {
+    if (!confirm('确定要删除该企业及其所有风险数据吗？此操作不可恢复。')) return;
+    fetch('/api/enterprises/' + eid, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) { showAlert('success', '已删除'); location.reload(); }
+        else showAlert('danger', '删除失败');
+    });
+}
+
+function seedTencent() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 导入中...';
+    fetch('/api/enterprises/seed-tencent', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) { showAlert('success', '腾讯控股案例已预置！'); location.reload(); }
+        else showAlert('danger', '导入失败');
+    })
+    .finally(() => { btn.disabled = false; });
+}
+</script>
+{% endblock %}

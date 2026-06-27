@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}{% if risk %}编辑风险{% else %}新增风险{% endif %}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">首页</a></li>
+        <li class="breadcrumb-item"><a href="/risks">风险管理</a></li>
+        <li class="breadcrumb-item active">{% if risk %}编辑 {{ risk.risk_code }}{% else %}新增{% endif %}</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">{% if risk %}编辑风险：{{ risk.name }}{% else %}新增风险{% endif %}</h4>
+            </div>
+            <div class="card-body">
+                <form id="risk-form">
+                    {% if risk %}<input type="hidden" id="risk-id" value="{{ risk.id }}">{% endif %}
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">风险编号 *</label>
+                            <input type="text" class="form-control" id="risk-code"
+                                   value="{{ risk.risk_code if risk else '' }}"
+                                   placeholder="如 R1, R2" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">风险名称 *</label>
+                            <input type="text" class="form-control" id="risk-name"
+                                   value="{{ risk.name if risk else '' }}"
+                                   placeholder="简明扼要地描述风险" required>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">风险类别</label>
+                            <select class="form-select" id="risk-category">
+                                <option value="外部风险" {% if risk and risk.category == '外部风险' %}selected{% endif %}>外部风险</option>
+                                <option value="内部风险" {% if risk and risk.category == '内部风险' %}selected{% endif %}>内部风险</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">子类别</label>
+                            <select class="form-select" id="risk-subcategory">
+                                <option value="">请选择</option>
+                                <optgroup label="外部风险">
+                                    <option value="监管政策风险" {% if risk and risk.subcategory == '监管政策风险' %}selected{% endif %}>监管政策风险</option>
+                                    <option value="行业竞争风险" {% if risk and risk.subcategory == '行业竞争风险' %}selected{% endif %}>行业竞争风险</option>
+                                    <option value="地缘政治风险" {% if risk and risk.subcategory == '地缘政治风险' %}selected{% endif %}>地缘政治风险</option>
+                                    <option value="技术变革风险" {% if risk and risk.subcategory == '技术变革风险' %}selected{% endif %}>技术变革风险</option>
+                                </optgroup>
+                                <optgroup label="内部风险">
+                                    <option value="战略风险" {% if risk and risk.subcategory == '战略风险' %}selected{% endif %}>战略风险</option>
+                                    <option value="运营风险" {% if risk and risk.subcategory == '运营风险' %}selected{% endif %}>运营风险</option>
+                                    <option value="财务风险" {% if risk and risk.subcategory == '财务风险' %}selected{% endif %}>财务风险</option>
+                                    <option value="技术风险" {% if risk and risk.subcategory == '技术风险' %}selected{% endif %}>技术风险</option>
+                                    <option value="人力资源风险" {% if risk and risk.subcategory == '人力资源风险' %}selected{% endif %}>人力资源风险</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">应对策略</label>
+                            <select class="form-select" id="response-type">
+                                <option value="reduce" {% if risk and risk.response_type == 'reduce' %}selected{% endif %}>🛡️ 风险降低</option>
+                                <option value="avoid" {% if risk and risk.response_type == 'avoid' %}selected{% endif %}>🚫 风险规避</option>
+                                <option value="transfer" {% if risk and risk.response_type == 'transfer' %}selected{% endif %}>🔄 风险转移</option>
+                                <option value="accept" {% if risk and risk.response_type == 'accept' %}selected{% endif %}>✅ 风险接受</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">可能性 (1-5)</label>
+                            <input type="number" class="form-control" id="probability"
+                                   value="{{ risk.probability if risk else 3 }}" min="1" max="5">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">影响程度 (1-5)</label>
+                            <input type="number" class="form-control" id="impact"
+                                   value="{{ risk.impact if risk else 3 }}" min="1" max="5">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">趋势</label>
+                            <select class="form-select" id="trend">
+                                <option value="stable" {% if risk and risk.trend == 'stable' %}selected{% endif %}>→ 稳定</option>
+                                <option value="increasing" {% if risk and risk.trend == 'increasing' %}selected{% endif %}>↑ 上升</option>
+                                <option value="decreasing" {% if risk and risk.trend == 'decreasing' %}selected{% endif %}>↓ 下降</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">状态</label>
+                            <select class="form-select" id="status">
+                                <option value="active" {% if risk and risk.status == 'active' %}selected{% endif %}>活跃</option>
+                                <option value="mitigated" {% if risk and risk.status == 'mitigated' %}selected{% endif %}>已缓解</option>
+                                <option value="closed" {% if risk and risk.status == 'closed' %}selected{% endif %}>已关闭</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">风险描述 *</label>
+                        <textarea class="form-control" id="description" rows="4"
+                                  placeholder="详细描述风险背景、现状和趋势..." required>{{ risk.description if risk else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">可能后果</label>
+                        <textarea class="form-control" id="consequences" rows="2"
+                                  placeholder="风险发生可能导致的财务和非财务影响">{{ risk.possible_consequences if risk else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">信息来源</label>
+                        <input type="text" class="form-control" id="info-source"
+                               value="{{ risk.information_source if risk else '' }}"
+                               placeholder="如：年报、公告、媒体报道等">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">当前应对措施</label>
+                        <textarea class="form-control" id="current-response" rows="3"
+                                  placeholder="已实施的应对措施">{{ risk.current_response if risk else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">改进建议</label>
+                        <textarea class="form-control" id="improvement" rows="3"
+                                  placeholder="基于分析提出的改进建议">{{ risk.suggested_improvement if risk else '' }}</textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="/risks" class="btn btn-outline-secondary">取消</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> 保存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById('risk-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const data = {
+        risk_code: document.getElementById('risk-code').value,
+        name: document.getElementById('risk-name').value,
+        category: document.getElementById('risk-category').value,
+        subcategory: document.getElementById('risk-subcategory').value,
+        probability: parseInt(document.getElementById('probability').value),
+        impact: parseInt(document.getElementById('impact').value),
+        trend: document.getElementById('trend').value,
+        status: document.getElementById('status').value,
+        response_type: document.getElementById('response-type').value,
+        description: document.getElementById('description').value,
+        possible_consequences: document.getElementById('consequences').value,
+        information_source: document.getElementById('info-source').value,
+        current_response: document.getElementById('current-response').value,
+        suggested_improvement: document.getElementById('improvement').value,
+    };
+
+    const riskId = document.getElementById('risk-id');
+    const url = riskId ? '/api/risks/' + riskId.value : '/api/risks';
+    const method = riskId ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            window.location.href = '/risks/' + d.data.id;
+        } else {
+            alert('保存失败：' + (d.error || '未知错误'));
+        }
+    });
+});
+</script>
+{% endblock %}

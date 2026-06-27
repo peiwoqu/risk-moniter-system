@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}M1 数据接入{% endblock %}
+{% block content %}
+
+{% if not enterprise %}
+<div class="text-center py-5">
+    <i class="bi bi-building-add" style="font-size:4rem;color:#ccc"></i>
+    <h3 class="mt-3">请先添加企业</h3>
+    <p class="text-muted">点击导航栏「添加企业」录入第一家企业信息</p>
+    <button class="btn btn-primary" onclick="showNewEnterprise()"><i class="bi bi-plus-lg"></i> 添加企业</button>
+    <hr class="w-50 mx-auto">
+    <button class="btn btn-outline-secondary btn-sm" onclick="fetch('/api/enterprises/seed-tencent',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success)location.reload()})">
+        <i class="bi bi-lightning"></i> 一键预置腾讯控股案例</button>
+</div>
+{% else %}
+
+<div class="row mb-3">
+    <div class="col"><h4><i class="bi bi-folder2-open"></i> M1: 数据接入 - {{ enterprise.name }}</h4></div>
+    <div class="col-auto">
+        <button class="btn btn-success btn-sm" onclick="analyze()"><i class="bi bi-cpu"></i> 运行AI分析</button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <!-- 企业基本信息 -->
+        <div class="card mb-3"><div class="card-header"><strong>企业信息</strong></div><div class="card-body">
+            <table class="table table-sm mb-0">
+                <tr><td width="100">名称</td><td><strong>{{ enterprise.name }}</strong></td></tr>
+                <tr><td>股票代码</td><td>{{ enterprise.stock_code or '-' }}</td></tr>
+                <tr><td>行业</td><td>{{ enterprise.industry or '-' }}</td></tr>
+                <tr><td>描述</td><td>{{ enterprise.description or '-' }}</td></tr>
+                <tr><td>已录入数据</td><td><strong>{{ enterprise.raw_data_length }} 字符</strong></td></tr>
+                <tr><td>已识别风险</td><td><span class="badge bg-warning">{{ enterprise.risk_count }} 项</span></td></tr>
+            </table>
+        </div></div>
+
+        <!-- 文本录入 -->
+        <div class="card mb-3"><div class="card-header"><strong><i class="bi bi-pencil-square"></i> 录入企业公开信息</strong></div><div class="card-body">
+            <textarea class="form-control mb-2" id="input-text" rows="8" placeholder="在此粘贴企业公开信息&#10;例如：年报「风险因素」章节、重大风险提示、行业分析、监管动态、财务数据等&#10;&#10;输入越详细，AI分析越准确！"></textarea>
+            <button class="btn btn-primary btn-sm" onclick="importText()"><i class="bi bi-plus-circle"></i> 录入文本数据</button>
+        </div></div>
+    </div>
+
+    <div class="col-md-6">
+        <!-- 文件上传 -->
+        <div class="card mb-3"><div class="card-header"><strong><i class="bi bi-cloud-upload"></i> 上传企业文件</strong></div><div class="card-body">
+            <p class="text-muted small">支持年报DOCX、Excel风险清单、TXT文本。系统自动提取文本内容并解析风险信息。</p>
+            <div class="border rounded p-4 text-center" id="drop-zone" style="border-style:dashed!important">
+                <i class="bi bi-file-earmark-arrow-up" style="font-size:2rem;color:#aaa"></i>
+                <p class="mt-2 mb-1">拖拽文件到此处或点击选择</p>
+                <input type="file" id="file-input" class="d-none" accept=".docx,.doc,.xlsx,.xls,.txt" multiple onchange="uploadFiles()">
+                <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('file-input').click()">选择文件</button>
+            </div>
+            <div id="file-list" class="mt-2"></div>
+        </div></div>
+
+        <!-- 智能解析结果 -->
+        {% if parsed and parsed.risk_count > 0 %}
+        <div class="card"><div class="card-header"><strong><i class="bi bi-magic"></i> 智能解析结果</strong></div><div class="card-body small">
+            <p><strong>预识别风险：{{ parsed.risk_count }} 项</strong> | 文本长度：{{ parsed.word_count }} 字符</p>
+            {% if parsed.financial_data %}
+            <p class="mb-1">财务指标：
+                {% for k,v in parsed.financial_data.items() %}<span class="badge bg-info me-1">{{ k }}: {{ v }}</span>{% endfor %}
+            </p>
+            {% endif %}
+            {% if parsed.extracted_risks %}
+            <div class="list-group list-group-flush">
+                {% for r in parsed.extracted_risks[:6] %}
+                <div class="list-group-item py-1 small">
+                    <strong>{{ r.name }}</strong> | {{ r.subcategory }} | P={{ r.probability }} I={{ r.impact }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function importText() {
+    const t = document.getElementById('input-text').value.trim();
+    if(!t) return alert('请先输入文本');
+    fetch('/api/enterprises/{{ enterprise.id }}/import-text',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})})
+    .then(r=>r.json()).then(d=>{if(d.success){showAlert('success','已录入 '+d.length+' 字符 (总计 '+d.total_length+')');location.reload()}else showAlert('danger',d.error)})
+}
+function uploadFiles() {
+    const files = document.getElementById('file-input').files;
+    if(!files.length) return;
+    const fd = new FormData();
+    for(let f of files) fd.append('file', f);
+    fetch('/api/enterprises/{{ enterprise.id }}/import-file',{method:'POST',body:fd})
+    .then(r=>r.json()).then(d=>{if(d.success){showAlert('success','文件已导入 ('+d.extracted_chars+' 字符)');location.reload()}else showAlert('danger',d.error)})
+}
+function analyze() {
+    const btn = event.target; btn.disabled=true; btn.innerHTML='<span class="spinner-border spinner-border-sm"></span> 分析中...';
+    fetch('/api/enterprises/{{ enterprise.id }}/analyze',{method:'POST'}).then(r=>r.json())
+    .then(d=>{if(d.success){showAlert('success','分析完成！'+d.risk_count+' 个风险');setTimeout(()=>window.location.href='/module2?enterprise_id={{ enterprise.id }}',1500)}else{showAlert('danger',d.error);btn.disabled=false;btn.innerHTML='<i class="bi bi-cpu"></i> 运行AI分析'}})
+}
+</script>
+{% endblock %}
